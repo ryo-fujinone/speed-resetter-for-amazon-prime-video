@@ -4,6 +4,8 @@ Amazon Prime Videoで動画再生中に以下のタイミングで再生速度�
 - イントロスキップボタンが出現するタイミング
 - Next upが出現するタイミング以降
 
+[[ユーザースクリプトをインストール](https://github.com/ryo-fujinone/speed-resetter-for-amazon-prime-video/raw/refs/heads/main/dist/speed-resetter.user.js)]
+
 このユーザースクリプトは日本のAmazon（amazon.co.jp）でのみ機能します。
 
 通信をインターセプトして作品ごとのイントロスキップボタン・Next upの表示タイミングのデータを取得し、そのデータを使用して機能します。作品によってはイントロスキップボタン・Next upが表示されない（表示タイミングが設定されていない）場合があり、その場合にはこのユーザースクリプトは機能しません。
