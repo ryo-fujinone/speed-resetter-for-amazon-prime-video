@@ -1,0 +1,16 @@
+{
+  "name": "speed-resetter-for-amazon-prime-video",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "rollup --config rollup.config.js",
+    "dev": "env-cmd -f .env.userscript rollup --config rollup.config.js --watch"
+  },
+  "devDependencies": {
+    "env-cmd": "^10.1.0",
+    "rollup": "^4.34.9",
+    "rollup-plugin-auto-reload": "^1.0.4",
+    "userscript-metadata-generator": "^0.2.4"
+  }
+}
