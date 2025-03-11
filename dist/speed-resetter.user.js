@@ -8,6 +8,8 @@
 // @require       https://jpillora.com/xhook/dist/xhook.min.js
 // @grant         none
 // @license       MIT; https://github.com/ryo-fujinone/speed-resetter-for-amazon-prime-video/blob/main/LICENSE
+// @downloadURL   https://github.com/ryo-fujinone/speed-resetter-for-amazon-prime-video/raw/refs/heads/main/dist/speed-resetter.user.js
+// @updateURL     https://github.com/ryo-fujinone/speed-resetter-for-amazon-prime-video/raw/refs/heads/main/dist/speed-resetter.user.js
 // ==/UserScript==
 
 (function () {

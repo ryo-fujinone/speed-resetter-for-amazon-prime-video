@@ -19,15 +19,16 @@ const createDevMetadata = (metadata, scriptUrl) => {
   };
 };
 
-// const createUpdatableScriptMetadata = (metadata) => {
-//   return {
-//     ...metadata,
-//     downloadURL:
-//       "https://update.greasyfork.org/scripts/478102/Auto%20hide%20next%20up%20card%20for%20Amazon%20Prime%20Video.user.js",
-//     updateURL:
-//       "https://update.greasyfork.org/scripts/478102/Auto%20hide%20next%20up%20card%20for%20Amazon%20Prime%20Video.meta.js",
-//   };
-// };
+const createUpdatableScriptMetadata = (metadata) => {
+  const url =
+    "https://github.com/ryo-fujinone/speed-resetter-for-amazon-prime-video/raw/refs/heads/main/dist/speed-resetter.user.js";
+
+  return {
+    ...metadata,
+    downloadURL: url,
+    updateURL: url,
+  };
+};
 
 const createRollupOptions = () => {
   const metadata = JSON.parse(
@@ -49,7 +50,7 @@ const createRollupOptions = () => {
   const devMetadata = createDevMetadata(metadata, userscriptUrl);
 
   const updatableScriptPath = `dist/userscript/${scriptName}.updatable.user.js`;
-  // const updatableScriptMetadata = createUpdatableScriptMetadata(metadata);
+  const updatableScriptMetadata = createUpdatableScriptMetadata(metadata);
 
   const mainOptions = {
     input: inputPath,
@@ -70,20 +71,20 @@ const createRollupOptions = () => {
     },
   };
 
-  // const updatableScriptOptions = {
-  //   input: inputPath,
-  //   output: {
-  //     file: updatableScriptPath,
-  //     format: "iife",
-  //     banner: () => `${userscriptMetadataGenerator(updatableScriptMetadata)}\n`,
-  //   },
-  // };
+  const updatableScriptOptions = {
+    input: inputPath,
+    output: {
+      file: updatableScriptPath,
+      format: "iife",
+      banner: () => `${userscriptMetadataGenerator(updatableScriptMetadata)}\n`,
+    },
+  };
 
   if (process.env.AUTO_RELOAD === "true") {
     mainOptions.plugins.push(autoReload());
   }
 
-  return [mainOptions, devOptions];
+  return [mainOptions, devOptions, updatableScriptOptions];
 };
 
 const options = createRollupOptions();
