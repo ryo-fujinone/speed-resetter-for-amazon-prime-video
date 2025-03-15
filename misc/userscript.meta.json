@@ -2,7 +2,7 @@
   "name": "OP/ED Speed Resetter for Amazon Prime Video",
   "namespace": "https://ryo-fujinone.net/",
   "version": null,
-  "description": "Amazon Prime Videで「OP中とED以降」のタイミングで再生速度を1.0にリセットします",
+  "description": "Amazon Prime Videoで「OP中とED以降」のタイミングで再生速度を1.0にリセットします",
   "author": "ryo-fujinone",
   "match": ["https://*.amazon.co.jp/*"],
   "require": ["https://jpillora.com/xhook/dist/xhook.min.js"],

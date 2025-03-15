@@ -2,14 +2,12 @@
 // @name          OP/ED Speed Resetter for Amazon Prime Video
 // @namespace     https://ryo-fujinone.net/
 // @version       0.1.0
-// @description   Amazon Prime Videで「OP中とED以降」のタイミングで再生速度を1.0にリセットします
+// @description   Amazon Prime Videoで「OP中とED以降」のタイミングで再生速度を1.0にリセットします
 // @author        ryo-fujinone
 // @match         https://*.amazon.co.jp/*
 // @require       https://jpillora.com/xhook/dist/xhook.min.js
 // @grant         none
 // @license       MIT; https://github.com/ryo-fujinone/speed-resetter-for-amazon-prime-video/blob/main/LICENSE
-// @downloadURL   https://github.com/ryo-fujinone/speed-resetter-for-amazon-prime-video/raw/refs/heads/main/dist/speed-resetter.user.js
-// @updateURL     https://github.com/ryo-fujinone/speed-resetter-for-amazon-prime-video/raw/refs/heads/main/dist/speed-resetter.user.js
 // ==/UserScript==
 
 (function () {
