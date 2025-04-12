@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name          OP/ED Speed Resetter for Amazon Prime Video
 // @namespace     https://ryo-fujinone.net/
-// @version       0.1.0
+// @version       0.1.1
 // @description   Amazon Prime Videoで「OP中とED以降」のタイミングで再生速度を1.0にリセットします
 // @author        ryo-fujinone
 // @match         https://*.amazon.co.jp/*
@@ -15,7 +15,8 @@
 
   const RANDOM = window.crypto.randomUUID().replaceAll("-", "");
 
-  const metadataArray = [];
+  const metadataResourceArray = [];
+  const getVodPlaybackResourcesArray = [];
   let mpdId;
 
   const getDefaultOptions = () => {
@@ -32,37 +33,77 @@
     };
   };
 
+  const isGetVodPlaybackResources = (request, response) => {
+    if (!request.url.includes("GetVodPlaybackResources")) {
+      return false;
+    }
+    if (response.status !== 200) {
+      return false;
+    }
+    if (response.headers?.["content-type"] !== "application/json") {
+      return false;
+    }
+    return true;
+  };
+
+  const hasCatalogMetadataV2Resource = (request, response) => {
+    if (!request.url.includes("playerChromeResources")) {
+      return false;
+    }
+    if (!request.url.includes("catalogMetadataV2")) {
+      return false;
+    }
+    if (response.status !== 200) {
+      return false;
+    }
+    if (response.headers?.["content-type"] !== "application/json") {
+      return false;
+    }
+    return true;
+  };
+
   xhook.after((request, response) => {
     const url = request.url;
     if (url.includes(".mp4")) {
-      // mp4のURLを監視してファイル名に含まれるIDを保存する
       const pathname = new URL(url).pathname;
       const found = pathname.match(/([0-9a-zA-Z-]+)_(video|audio)_\d+\.mp4$/);
       if (!found) {
         return;
       }
       mpdId = found[1];
-    } else {
-      // 各コンテンツのメタデータを取得して配列に保存する
-      if (
-        !url.includes("GetPlaybackResources") ||
-        !url.includes("CatalogMetadata") ||
-        !url.includes("TransitionTimecodes")
-      ) {
+    } else if (isGetVodPlaybackResources(request, response)) {
+      const titleId = new window.URL(url).searchParams.get("titleId");
+      if (!titleId) {
         return;
       }
-      if (response.status !== 200) {
+      if (getVodPlaybackResourcesArray.find((g) => g.titleId === titleId)) {
         return;
       }
 
-      try {
-        const data = JSON.parse(response.text);
-        metadataArray.push(data);
-        if (metadataArray.length > 20) {
-          metadataArray.shift();
-        }
-      } catch (e) {
-        console.log(e);
+      const data = JSON.parse(response.text);
+      getVodPlaybackResourcesArray.push({
+        titleId,
+        data,
+      });
+      if (getVodPlaybackResourcesArray > 20) {
+        getVodPlaybackResourcesArray.shift();
+      }
+    } else if (hasCatalogMetadataV2Resource(request, response)) {
+      const entityId = new window.URL(url).searchParams.get("entityId");
+      if (!entityId) {
+        return;
+      }
+      if (metadataResourceArray.find((m) => m.entityId === entityId)) {
+        return;
+      }
+
+      const data = JSON.parse(response.text);
+      metadataResourceArray.push({
+        entityId,
+        data,
+      });
+      if (metadataResourceArray > 20) {
+        metadataResourceArray.shift();
       }
     }
   });
@@ -458,7 +499,7 @@
     #player;
     #video;
     #options;
-    #currentMetadata;
+    #GetVodPlaybackResources;
     #identifyMetadata;
     #controlVideoSpeed;
     #canResetIntroVideoSpeed;
@@ -496,27 +537,53 @@
         return;
       }
 
-      // mpdのIDからメタデータを特定する
-      const metadata = metadataArray.find((d) => {
-        const defaultUrlSetId = d?.playbackUrls?.defaultUrlSetId;
-        if (!defaultUrlSetId) return;
-        const mpdUrl =
-          d?.playbackUrls?.urlSets[defaultUrlSetId].urls.manifest.url;
-        return mpdUrl.includes(mpdId);
+      // mpdのIDからGetVodPlaybackResourcesを特定する
+      const getVodPlaybackResources = getVodPlaybackResourcesArray.find((g) => {
+        const playbackUrls = g.data?.vodPlaybackUrls?.result?.playbackUrls;
+        if (!playbackUrls) {
+          return;
+        }
+        const urlSets = playbackUrls.urlSets;
+        if (!urlSets) {
+          return;
+        }
+        const defaultUrlSetId = playbackUrls.defaultUrlSetId;
+        if (!defaultUrlSetId) {
+          return;
+        }
+        const urlSet = urlSets.find((u) => u.urlSetId === defaultUrlSetId);
+        if (!urlSet) {
+          return;
+        }
+        const mpdUrl = urlSet.url;
+        return mpdUrl?.includes(mpdId);
       });
-      if (!metadata) {
+      if (!getVodPlaybackResources) {
         return;
       }
 
-      // このタイミングでDOMのタイトルにメタデータのタイトルが含まれるかどうかを検証をしないと不適切なメタデータで後の処理に進んでしまう場合があった
-      // （subtitle-textは「シーズン」や「エピソード」といった文字列を含むので、一致するかどうかの検証は不適切）
-      if (!title.includes(metadata.catalogMetadata?.catalog?.title)) {
+      // コンテンツ毎に固有のIDを検証してメタデータを特定する
+      const titleId = getVodPlaybackResources.titleId;
+      const metadataResource = metadataResourceArray.find(
+        (m) => m.entityId === titleId
+      );
+      if (!metadataResource) {
         return;
       }
 
-      this.#currentMetadata = metadata;
-      console.log(`検出 「${metadata.catalogMetadata?.catalog?.title}」`);
-      console.log(metadata.transitionTimecodes);
+      // タイトルを検証してメタデータを特定する
+      const targetTitle =
+        metadataResource.data.resources?.catalogMetadataV2?.catalog?.title;
+      if (!title.includes(targetTitle)) {
+        return;
+      }
+
+      this.#GetVodPlaybackResources = getVodPlaybackResources.data;
+      console.log(`検出 「${targetTitle}」`);
+      // console.log(metadata.transitionTimecodes);
+      console.log(
+        getVodPlaybackResources.data.transitionTimecodes?.result?.events
+      );
 
       this.#video.removeEventListener("timeupdate", this.#identifyMetadata);
       this.#video.addEventListener("timeupdate", this.#controlVideoSpeed);
@@ -538,56 +605,62 @@
       if (!event) {
         return;
       }
-      const transitionTimecodes = this.#currentMetadata?.transitionTimecodes;
+      const transitionTimecodes =
+        this.#GetVodPlaybackResources?.transitionTimecodes?.result?.events;
       if (!transitionTimecodes) {
         return;
       }
-
-      let existsIntroTimeCodes = false;
-      let introTimeCodes;
-      if (transitionTimecodes.skipElements) {
-        introTimeCodes = transitionTimecodes.skipElements.find(
-          (obj) => obj.elementType === "INTRO"
-        );
-        existsIntroTimeCodes = !!introTimeCodes;
+      if (!Array.isArray([transitionTimecodes])) {
+        return;
       }
-      const existsEdTimeCodes =
-        !!transitionTimecodes.endCreditsStart ||
-        !!transitionTimecodes.outroCreditsStart;
+
+      const introTimeCodeObj = transitionTimecodes.find((t) => {
+        return t?.eventType === "SKIP_INTRO";
+      });
+
+      let edTimeCodeObj = null;
+      const filteredEdTimeCodes = transitionTimecodes.filter((t) => {
+        return ["END_CREDITS", "NEXT_UP"].includes(t.eventType);
+      });
+      if (filteredEdTimeCodes.length > 0) {
+        edTimeCodeObj = filteredEdTimeCodes.reduce((acc, cur) => {
+          return acc?.startTimeMs < cur?.startTimeMs ? acc : cur;
+        }, {});
+      }
 
       const currentTime = event.target.currentTime;
       const fixedCurrentTime = currentTime * 1000;
 
-      if (this.#options.resetIntroSpeed && existsIntroTimeCodes) {
-        this.#controlIntroSpeed(introTimeCodes, fixedCurrentTime);
+      if (this.#options.resetIntroSpeed && introTimeCodeObj) {
+        this.#controlIntroSpeed(introTimeCodeObj, fixedCurrentTime);
       }
 
-      if (this.#options.resetEdSpeed && existsEdTimeCodes) {
-        this.#controlEdSpeed(transitionTimecodes, fixedCurrentTime);
+      if (this.#options.resetEdSpeed && edTimeCodeObj) {
+        this.#controlEdSpeed(edTimeCodeObj, fixedCurrentTime);
       }
     }
 
     // OP中の再生速度の制御
-    #controlIntroSpeed(introTimeCodes, currentTime) {
-      let startTimecodeMs = introTimeCodes.startTimecodeMs;
+    #controlIntroSpeed(introTimeCodeObj, currentTime) {
+      let startTimeMs = introTimeCodeObj.startTimeMs;
       if (this.#options.resetIntroSpeedTimingFix) {
         // OPと全くの同時ではなく微妙に遅れている作品もあったので調整できるようにしている
-        startTimecodeMs =
-          startTimecodeMs - this.#options.resetIntroSpeedTimingFix_val;
+        startTimeMs = startTimeMs - this.#options.resetIntroSpeedTimingFix_val;
       }
-      if (0 > startTimecodeMs) {
-        startTimecodeMs = 0;
+      if (0 > startTimeMs) {
+        startTimeMs = 0;
       }
-      const endTimecodeMs = introTimeCodes.endTimecodeMs;
 
-      if (currentTime <= startTimecodeMs) {
+      const endTimeMs = introTimeCodeObj.endTimeMs;
+
+      if (currentTime <= startTimeMs) {
         this.#canResetIntroVideoSpeed = true;
       }
 
       // 再生速度を1.0に変更
       if (
-        currentTime >= startTimecodeMs &&
-        currentTime < endTimecodeMs &&
+        currentTime >= startTimeMs &&
+        currentTime < endTimeMs &&
         this.#canResetIntroVideoSpeed
       ) {
         this.#video.playbackRate = 1.0;
@@ -597,7 +670,7 @@
       }
 
       // イントロスキップボタンが消えるタイミングで再生速度を任意の値に変更
-      if (currentTime >= endTimecodeMs && this.#canChangeVideoSpeed) {
+      if (currentTime >= endTimeMs && this.#canChangeVideoSpeed) {
         if (this.#options.changeSpeedAfterIntro) {
           this.#video.playbackRate = this.#options.changeSpeedAfterIntro_val;
           console.log(
@@ -607,34 +680,28 @@
         }
       }
 
-      if (currentTime > endTimecodeMs) {
+      if (currentTime > endTimeMs) {
         this.#canResetIntroVideoSpeed = true;
       }
     }
 
-    // ED以降の再生速度の制御
-    #controlEdSpeed(transitionTimecodes, currentTime) {
-      //両方の値が存在する場合は小さい方（タイミングの早い方）を使用する
-      let timecodeArray = [
-        transitionTimecodes.endCreditsStart,
-        transitionTimecodes.outroCreditsStart,
-      ];
-      timecodeArray = timecodeArray.filter((n) => !isNaN(n));
-      let targetTimecodeMs = Math.min(...timecodeArray);
+    // // ED以降の再生速度の制御
+    #controlEdSpeed(edTimeCodeObj, currentTime) {
+      let startTimeMs = edTimeCodeObj.startTimeMs;
 
       if (this.#options.resetEdSpeedTimingFix) {
         // EDと全くの同時ではなく微妙に遅れている作品もあったので調整できるようにしている
-        targetTimecodeMs -= this.#options.resetEdSpeedTimingFix_val;
+        startTimeMs -= this.#options.resetEdSpeedTimingFix_val;
       }
 
       // 再生速度を1.0に変更
-      if (currentTime >= targetTimecodeMs && this.#canResetEdVideoSpeed) {
+      if (currentTime >= startTimeMs && this.#canResetEdVideoSpeed) {
         this.#video.playbackRate = 1.0;
         console.log("再生速度を1.0に変更");
         this.#canResetEdVideoSpeed = false;
       }
 
-      if (currentTime < targetTimecodeMs) {
+      if (currentTime < startTimeMs) {
         this.#canResetEdVideoSpeed = true;
       }
     }
